@@ -167,13 +167,21 @@ token stays in the secret.
 
 ---
 
-## Known issue, not yet fixed
+## How often the lobby asks
 
-**The lobby polls `/api/state` every 2.5 s forever**, and while she is awake each poll probes
-`/api/health` on the GPU container. Every request resets the 15-minute scaledown clock, so
-**leaving the lobby tab open means she never sleeps on her own** — the opposite of what the
-page is for. Fix: stop the interval once the state settles (`ready`/`asleep`) and poll only
-while `waking`.
+The lobby polls `/api/state`, and the interval depends on the state — **not** one fixed number.
+While she is awake that endpoint probes `/api/health` on the GPU container, and Modal counts
+every request as activity that resets the 15-minute scaledown clock, so a fixed interval meant
+leaving the tab open kept her awake forever, at A10 prices.
+
+| lobby state | polls | why |
+|---|---|---|
+| `waking` | every 2.5 s | we need to see the cold start finish |
+| `asleep` | every 15 s | free — at `runners: 0` the endpoint returns early and never touches the GPU |
+| `ready`, `error` | **never** | nothing left to watch; any further request postpones her scaledown |
+
+Built as a self-scheduling `setTimeout` rather than `setInterval` for exactly this reason.
+If you ever add a state, decide its interval deliberately.
 
 ---
 

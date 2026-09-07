@@ -62,7 +62,17 @@ const flagsEl  = document.getElementById('flags');
 // elapsed-vs-expected bar; the container cannot report its own progress, so past the
 // estimate the bar stops rather than animating an invented one.
 const WAKE_ESTIMATE_S = 89;
-const POLL_MS = 2500;
+
+// How often to ask /api/state, BY STATE - and the reason this is not one number.
+//
+// While she is awake, /api/state probes /api/health on the GPU container, and Modal counts
+// every request as activity that resets the 15-minute scaledown clock. A fixed interval
+// therefore meant that leaving this tab open kept her awake forever - the exact opposite of
+// what this page is for. So polling stops the moment there is nothing left to watch.
+const POLL_WAKING_MS = 2500;    // watching a cold start: we need to see it finish
+const POLL_ASLEEP_MS = 15000;   // free: at runners 0 /api/state returns early and never
+                                // touches the GPU container at all
+// 'ready' and 'error' do not poll at all - see schedule().
 
 let mode = 'checking';      // 'checking' | 'asleep' | 'waking' | 'ready' | 'error'
 let t0 = 0, ticker = null;
@@ -151,13 +161,29 @@ async function poll() {
   } finally { polling = false; }
 }
 
+/** Queue the next poll for whatever state we are now in - or none at all.
+ *
+ *  This is a self-scheduling timeout rather than a setInterval on purpose: the right
+ *  interval depends on the state we just moved into, and for 'ready' and 'error' the right
+ *  answer is to stop entirely. There is nothing left to watch there, and every extra
+ *  request against an awake container postpones her scaledown at A10 prices. */
+let timer = null;
+function schedule() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  const every = mode === 'waking' ? POLL_WAKING_MS
+              : mode === 'asleep' ? POLL_ASLEEP_MS
+              : 0;
+  if (every) timer = setTimeout(tick, every);
+}
+async function tick() { await poll(); schedule(); }
+
 actionEl.addEventListener('click', async () => {
   if (mode === 'ready' || mode === 'error') { location.href = '/go'; return; }
   setMode('waking', 'she is starting up');
   // Fire-and-forget on the server side: the lobby pokes the GPU app so the browser is not
   // the thing holding a ~89 s request open with nothing on screen.
   try { await fetch('/api/wake', { method: 'POST' }); } catch (e) {}
-  poll();
+  tick();
 });
 
 (async function boot() {
@@ -166,7 +192,7 @@ actionEl.addEventListener('click', async () => {
   else if (s.awake && s.health) { showFlags(s.health); handOver(false); }
   else if (s.awake) { setMode('waking', 'she is starting up'); }
   else { setMode('asleep', 'she is asleep'); }
-  setInterval(poll, POLL_MS);
+  schedule();
 })();
 </script>
 </body>

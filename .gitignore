@@ -1,0 +1,28 @@
+# NOTE: git does not support trailing comments on a pattern line - the whole line,
+# spaces and '#' included, becomes the pattern. Keep every comment on its own line.
+
+# --- secrets: never commit, even to a private repo ---
+# zeta-link.txt holds the live ZETA_TOKEN; certs/ holds the HTTPS private key
+zeta-link.txt
+certs/
+*.pem
+
+# --- model weights, caches, runtimes: gigabytes, and none of it is ours ---
+# Style-Bert-VITS2 is a vendored third-party repo plus its voice weights
+Style-Bert-VITS2
+Style-Bert-VITS2/
+python311/
+ollama_models/
+hf_cache/
+nltk_data/
+installers/
+
+# --- generated audio: rendered in a real VTuber's voice, don't redistribute ---
+*.wav
+tune/*
+!tune/motion_lab.html
+
+# --- local noise ---
+__pycache__/
+*.pyc
+.claude/

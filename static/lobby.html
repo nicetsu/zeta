@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Zeta — lobby</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: -apple-system, system-ui, sans-serif; color: #f3eefb;
+    background: radial-gradient(120% 120% at 50% 0%, #2a1a3a 0%, #15101f 60%, #0c0a12 100%);
+    display: flex; align-items: center; justify-content: center; padding: 24px; }
+  main { width: 100%; max-width: 380px; text-align: center; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; margin: 0 0 6px; }
+  #sub { font-size: 14px; opacity: .6; margin-bottom: 28px; min-height: 20px; }
+  #face { font-size: 56px; line-height: 1; margin-bottom: 18px; }
+  button { border: none; cursor: pointer; font-family: inherit; }
+  #action { width: 100%; padding: 15px 20px; border-radius: 14px; font-size: 16px; font-weight: 600;
+    background: #8b46c0; color: #fff; box-shadow: 0 8px 30px rgba(139,70,192,.4); }
+  #action:active { transform: scale(.98); }
+  #action:disabled { opacity: .45; box-shadow: none; cursor: default; }
+  #action.warm { background: #c08a46; box-shadow: 0 8px 30px rgba(192,138,70,.4); }
+  #bar { display: none; width: 100%; height: 6px; border-radius: 3px; background: #ffffff1a;
+    overflow: hidden; margin: 22px 0 10px; }
+  #bar.show { display: block; }
+  #bar i { display: block; height: 100%; width: 0; background: #8b46c0; transition: width .45s linear; }
+  #bar.over i { background: #c08a46; }
+  #clock { font-size: 13px; opacity: .7; min-height: 18px; }
+  #flags { font-size: 12.5px; opacity: .55; margin-top: 14px; min-height: 16px; }
+  #note { font-size: 12px; opacity: .4; margin-top: 26px; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <main>
+    <div id="face">💤</div>
+    <h1>Zeta</h1>
+    <div id="sub">checking…</div>
+    <button id="action" disabled>…</button>
+    <div id="bar"><i></i></div>
+    <div id="clock"></div>
+    <div id="flags"></div>
+    <p id="note">This page runs on its own tiny container with no GPU, so it answers in
+      seconds and does <b>not</b> wake her by itself. Opening the chat page directly always
+      does.</p>
+  </main>
+
+<script>
+// The lobby exists because of one constraint: the chat page is served BY the GPU container,
+// so merely opening it has already triggered a ~89 s cold start against a blank browser.
+// This page is served by a separate no-GPU function, so it can show her state first and let
+// you decide - the only place that choice can be offered.
+const faceEl   = document.getElementById('face');
+const subEl    = document.getElementById('sub');
+const actionEl = document.getElementById('action');
+const barEl    = document.getElementById('bar');
+const fillEl   = barEl.querySelector('i');
+const clockEl  = document.getElementById('clock');
+const flagsEl  = document.getElementById('flags');
+
+// Measured over four cold starts on 2026-09-05 (README.md). Used only to draw an honest
+// elapsed-vs-expected bar; the container cannot report its own progress, so past the
+// estimate the bar stops rather than animating an invented one.
+const WAKE_ESTIMATE_S = 89;
+const POLL_MS = 2500;
+
+let mode = 'checking';      // 'checking' | 'asleep' | 'waking' | 'ready' | 'error'
+let t0 = 0, ticker = null;
+
+function startClock() {
+  if (ticker) return;
+  t0 = Date.now();
+  barEl.classList.add('show');
+  const tick = () => {
+    const s = Math.floor((Date.now() - t0) / 1000);
+    const clock = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    if (s <= WAKE_ESTIMATE_S) {
+      clockEl.textContent = clock + ' / usually ~' + WAKE_ESTIMATE_S + ' s';
+      fillEl.style.width = (100 * s / WAKE_ESTIMATE_S) + '%';
+      barEl.classList.remove('over');
+    } else {
+      clockEl.textContent = clock + ' — longer than usual';
+      fillEl.style.width = '100%';
+      barEl.classList.add('over');
+    }
+  };
+  tick();
+  ticker = setInterval(tick, 500);
+}
+function stopClock() {
+  if (ticker) { clearInterval(ticker); ticker = null; }
+  barEl.classList.remove('show', 'over');
+  fillEl.style.width = '0';
+  clockEl.textContent = '';
+}
+
+function showFlags(h) {
+  if (!h) { flagsEl.textContent = ''; return; }
+  const y = (ok) => ok ? '✓' : '✗';
+  flagsEl.textContent = 'brain ' + y(h.ollama) + ' · voice ' + y(h.sbv2) +
+                        ' · warm ' + y(h.llm_warm && h.tts_warm);
+}
+
+function setMode(m, sub) {
+  mode = m;
+  subEl.textContent = sub || '';
+  faceEl.textContent = m === 'ready' ? '☀️' : m === 'waking' ? '⏳' : m === 'error' ? '⚠️' : '💤';
+  actionEl.disabled = (m === 'checking' || m === 'waking');
+  actionEl.classList.toggle('warm', m === 'ready');
+  actionEl.textContent = m === 'ready'  ? 'open the chat →'
+                       : m === 'waking' ? 'waking her up…'
+                       : m === 'error'  ? 'open the chat anyway →'
+                       : m === 'asleep' ? '☀️ wake her up'
+                       : '…';
+  if (m === 'waking') startClock(); else stopClock();
+}
+
+async function getState() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+
+/** She is up and health answered: hand over to the chat page. /go carries the token so a
+ *  browser that has never visited the chat subdomain still gets its cookie set. */
+function handOver(auto) {
+  setMode('ready', 'she is awake');
+  if (auto) setTimeout(() => { location.href = '/go'; }, 900);
+}
+
+let polling = false;
+async function poll() {
+  if (polling) return;
+  polling = true;
+  try {
+    const s = await getState();
+    if (!s) { setMode('error', 'could not read her state'); showFlags(null); return; }
+    if (!s.awake) {
+      // A container that goes away mid-wake (a failed start) lands here; offering the
+      // button again is the honest response.
+      setMode('asleep', mode === 'waking' ? 'she went back to sleep' : 'she is asleep');
+      showFlags(null);
+      return;
+    }
+    showFlags(s.health);
+    // Runners exist but health has not answered yet - still starting, not an error.
+    if (s.health) handOver(mode === 'waking');
+    else setMode('waking', 'she is starting up');
+  } finally { polling = false; }
+}
+
+actionEl.addEventListener('click', async () => {
+  if (mode === 'ready' || mode === 'error') { location.href = '/go'; return; }
+  setMode('waking', 'she is starting up');
+  // Fire-and-forget on the server side: the lobby pokes the GPU app so the browser is not
+  // the thing holding a ~89 s request open with nothing on screen.
+  try { await fetch('/api/wake', { method: 'POST' }); } catch (e) {}
+  poll();
+});
+
+(async function boot() {
+  const s = await getState();
+  if (!s) { setMode('error', 'could not read her state'); }
+  else if (s.awake && s.health) { showFlags(s.health); handOver(false); }
+  else if (s.awake) { setMode('waking', 'she is starting up'); }
+  else { setMode('asleep', 'she is asleep'); }
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>

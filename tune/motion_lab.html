@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<title>Zeta Lab — Motion &amp; Expression</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: -apple-system, system-ui, "Segoe UI", sans-serif; color: #f3eefb;
+    background: radial-gradient(120% 120% at 50% 0%, #2a1a3a 0%, #15101f 60%, #0c0a12 100%);
+    display: flex; }
+
+  #stage { flex: 0 0 42%; position: relative; min-width: 0; }
+  #live2d { width: 100%; height: 100%; display: block; }
+  #status { position: absolute; left: 12px; bottom: 12px; right: 12px; font-size: 12px;
+    opacity: .7; font-family: ui-monospace, Consolas, monospace; pointer-events: none; }
+
+  #panel { flex: 1 1 auto; overflow-y: auto; padding: 24px 26px;
+    border-left: 1px solid #ffffff14; background: #0e0b16cc; min-width: 0; }
+  h1 { margin: 0 0 3px; font-size: 19px; }
+  .sub { opacity: .55; font-size: 12.5px; margin-bottom: 20px; line-height: 1.5; }
+  h2 { font-size: 14px; margin: 22px 0 8px; color: #c9a6ff; }
+  .hint { opacity: .5; font-size: 11.5px; margin: -4px 0 9px; line-height: 1.45; }
+  .grid { display: flex; flex-wrap: wrap; gap: 7px; }
+  button { padding: 8px 13px; border-radius: 9px; border: 1px solid #ffffff1f; cursor: pointer;
+    background: #2a2140; color: #e8dcff; font-size: 13px; font-family: inherit; }
+  button:hover { border-color: #ffffff44; }
+  button:active { transform: scale(.96); }
+  button.grp { background: #8b46c0; color: #fff; border-color: transparent; }
+  button.mood { background: #1b1430; }
+  button.mood.on { background: #3a2a5c; border-color: #b06cff; }
+  button.warn { background: #3a2140; }
+  .log { margin-top: 20px; padding: 11px 13px; border-radius: 9px; background: #00000040;
+    border: 1px solid #ffffff14; font-family: ui-monospace, Consolas, monospace;
+    font-size: 11.5px; line-height: 1.7; height: 132px; overflow-y: auto; opacity: .85; }
+  .note { margin-top: 18px; font-size: 12.5px; line-height: 1.65; opacity: .75; }
+  code { background: #0000004d; padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+  label.tg { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;
+    margin-bottom: 10px; }
+  label.tg input { width: 16px; height: 16px; accent-color: #8b46c0; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="live2d"></canvas>
+    <div id="status">loading…</div>
+  </div>
+
+  <div id="panel">
+    <h1>Motion &amp; Expression Lab</h1>
+    <div class="sub">
+      ทดลองว่าโมเดลทำท่าอะไรได้บ้าง ก่อนตัดสินใจผูกเข้ากับอารมณ์ ·
+      หน้านี้แยกต่างหาก <b>ไม่แตะ static/index.html</b>
+    </div>
+
+    <label class="tg"><input type="checkbox" id="faceOverride" checked>
+      คุมสีหน้าด้วยอารมณ์ (เหมือนแอปจริง)</label>
+    <div class="hint">ปิดอันนี้เพื่อดูว่า motion ตัวมันเองขยับหน้ายังไง — เปิดไว้เพื่อดูผลรวมแบบที่ผู้ใช้จะเห็นจริง</div>
+
+    <h2>ท่าเต็ม — สีหน้า + ท่าทาง (43 พารามิเตอร์)</h2>
+    <div class="hint">ชุดที่จูนไว้แล้ว ใช้แขน มุมหัว ทิศตา หน้าแดง เงาหม่น ครบ · ปุ่มนี้จะทับ "อารมณ์ (สีหน้า)" ด้านล่าง</div>
+    <div class="grid" id="poses"></div>
+
+    <h2>อารมณ์ (สีหน้าอย่างเดียว — ของเดิม 3 พารามิเตอร์)</h2>
+    <div class="hint">แบบที่ index.html ใช้อยู่ตอนนี้ ไว้เทียบว่าต่างกันแค่ไหน</div>
+    <div class="grid" id="moods"></div>
+
+    <h2>Motion — ท่าทางร่างกาย</h2>
+    <div class="hint">ปุ่มม่วง = สุ่มในกลุ่ม · ปุ่มเทา = ท่าเจาะจง กดดูทีละอันว่าเหมาะกับอารมณ์ไหน</div>
+    <div class="grid" id="motions"></div>
+
+    <h2>Expression — สีหน้าสำเร็จรูป</h2>
+    <div class="hint">⚠️ อาจตีกันกับการคุมสีหน้าด้านบน ลองปิด checkbox แล้วกดดู</div>
+    <div class="grid" id="expressions"></div>
+
+    <h2>อื่นๆ</h2>
+    <div class="grid">
+      <button class="warn" id="reset">รีเซ็ตสีหน้า</button>
+      <button class="warn" id="params">พิมพ์รายชื่อพารามิเตอร์ทั้งหมด (F12)</button>
+    </div>
+
+    <div class="log" id="log"></div>
+
+    <div class="note">
+      <b>สิ่งที่ต้องดู:</b> motion แต่ละท่ายาวแค่ไหน · ท่าไหนดู "เขิน" (→ <code>flustered</code>)
+      ท่าไหนดู "เมิน" (→ <code>detached</code>) ท่าไหนดู "สนใจ" (→ <code>curious</code>) ·
+      และถ้าอารมณ์เปลี่ยนถี่ๆ ระหว่าง motion ยังเล่นอยู่ มันกระตุกไหม
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism2.min.js"></script>
+<script>
+const MODEL_URL = "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@master/test/assets/shizuku/shizuku.model.json";
+
+// Same six profiles the real app uses, so what you see here is what users would see.
+const EMOTIONS = {
+  pondering: { mouthForm: 0.10, eyeOpen: 0.85, brow: -0.15 },
+  curious:   { mouthForm: 0.60, eyeOpen: 1.25, brow:  0.40 },
+  amused:    { mouthForm: 0.85, eyeOpen: 0.75, brow:  0.15 },
+  flustered: { mouthForm: 0.30, eyeOpen: 1.10, brow: -0.30 },
+  detached:  { mouthForm: -0.10, eyeOpen: 0.90, brow: 0.00 },
+  earnest:   { mouthForm: 0.35, eyeOpen: 0.95, brow: -0.10 },
+};
+
+const logEl = document.getElementById('log');
+const statusEl = document.getElementById('status');
+function log(s) {
+  const t = new Date().toLocaleTimeString('en-GB');
+  logEl.innerHTML = `<div>${t}  ${s}</div>` + logEl.innerHTML;
+}
+function status(s) { statusEl.textContent = s; }
+
+// Full poses, tuned by eye against the live model on 2026-09-03. These use the same
+// parameter vocabulary the model's own artist used in expressions/f02 and f04 - arms,
+// head angle, gaze direction, blush (TERE) and gloom (DONYORI) - rather than the three
+// face parameters index.html currently drives.
+const POSE = {
+  // head tilted, gaze drifting up and away, one hand raised - visibly working it out
+  pondering: { PARAM_ANGLE_X:10, PARAM_ANGLE_Y:6, PARAM_ANGLE_Z:-5,
+    PARAM_EYE_BALL_X:0.35, PARAM_EYE_BALL_Y:0.55, PARAM_EYE_L_OPEN:0.85, PARAM_EYE_R_OPEN:0.85,
+    PARAM_BROW_L_Y:-0.1, PARAM_BROW_R_Y:-0.1, PARAM_BROW_L_ANGLE:0.2, PARAM_BROW_R_ANGLE:0.2,
+    PARAM_BROW_L_FORM:-0.2, PARAM_BROW_R_FORM:-0.2, PARAM_MOUTH_FORM:0, PARAM_MOUTH_SIZE:-0.3,
+    PARAM_ARM_L:0.45, PARAM_ARM_R:0.15, PARAM_BODY_Y:-0.1 },
+  // leaning in, eyes wide with a sparkle - the one state where she lights up
+  curious: { PARAM_ANGLE_X:-6, PARAM_ANGLE_Y:4, PARAM_ANGLE_Z:3,
+    PARAM_EYE_BALL_X:0, PARAM_EYE_BALL_Y:0.1, PARAM_EYE_L_OPEN:1.3, PARAM_EYE_R_OPEN:1.3,
+    PARAM_EYE_BALL_KIRAKIRA:0.8, PARAM_BROW_L_Y:0.3, PARAM_BROW_R_Y:0.3,
+    PARAM_BROW_L_FORM:0.4, PARAM_BROW_R_FORM:0.4, PARAM_MOUTH_FORM:0.4, PARAM_MOUTH_SIZE:0.5,
+    PARAM_ARM_L:0.6, PARAM_ARM_R:0.6, PARAM_BODY_Y:0.2, PARAM_BODY_Z:-4 },
+  // half-lidded side glance and a smirk - dry, not laughing
+  amused: { PARAM_ANGLE_X:4, PARAM_ANGLE_Z:6,
+    PARAM_EYE_BALL_X:0.35, PARAM_EYE_BALL_Y:-0.1, PARAM_EYE_L_OPEN:0.7, PARAM_EYE_R_OPEN:0.7,
+    PARAM_EYE_FORM:0.4, PARAM_BROW_L_ANGLE:-0.3, PARAM_BROW_R_ANGLE:-0.3,
+    PARAM_BROW_L_FORM:0.3, PARAM_BROW_R_FORM:0.3, PARAM_MOUTH_FORM:0.9, PARAM_MOUTH_SIZE:0.2,
+    PARAM_ARM_L:-0.5, PARAM_ARM_R:-0.5 },
+  // hands up defensively, blushing, looking away - inferior Fe getting poked
+  flustered: { PARAM_ANGLE_X:13, PARAM_ANGLE_Z:7,
+    PARAM_EYE_BALL_X:-0.5, PARAM_EYE_BALL_Y:-0.45, PARAM_EYE_L_OPEN:1.1, PARAM_EYE_R_OPEN:1.1,
+    PARAM_BROW_L_Y:-0.3, PARAM_BROW_R_Y:-0.3, PARAM_BROW_L_ANGLE:0.4, PARAM_BROW_R_ANGLE:0.4,
+    PARAM_BROW_L_FORM:-0.5, PARAM_BROW_R_FORM:-0.5, PARAM_MOUTH_FORM:-0.2, PARAM_MOUTH_SIZE:-0.3,
+    PARAM_TERE:1, PARAM_ARM_L:1, PARAM_ARM_R:1, PARAM_BODY_Y:-0.2 },
+  // turned away, gaze down, gloom shading, slumped - the "aloof" read
+  detached: { PARAM_ANGLE_X:-14, PARAM_ANGLE_Y:-4,
+    PARAM_EYE_BALL_X:-0.4, PARAM_EYE_BALL_Y:-0.7, PARAM_EYE_L_OPEN:0.7, PARAM_EYE_R_OPEN:0.7,
+    PARAM_DONYORI:0.7, PARAM_EYE_FORM:0.3, PARAM_BROW_L_Y:-0.3, PARAM_BROW_R_Y:-0.3,
+    PARAM_BROW_L_X:-0.3, PARAM_BROW_R_X:-0.3, PARAM_BROW_L_ANGLE:0.5, PARAM_BROW_R_ANGLE:0.5,
+    PARAM_BROW_L_FORM:-0.5, PARAM_BROW_R_FORM:-0.5, PARAM_MOUTH_FORM:-1, PARAM_MOUTH_SIZE:-1,
+    PARAM_ARM_L:-1, PARAM_ARM_R:-1, PARAM_BODY_Y:-0.5 },
+  // still, upright, actually looking at you - rare on purpose
+  earnest: { PARAM_ANGLE_X:0, PARAM_ANGLE_Y:0, PARAM_ANGLE_Z:0,
+    PARAM_EYE_BALL_X:0, PARAM_EYE_BALL_Y:0, PARAM_EYE_L_OPEN:0.95, PARAM_EYE_R_OPEN:0.95,
+    PARAM_BROW_L_Y:-0.1, PARAM_BROW_R_Y:-0.1, PARAM_BROW_L_FORM:-0.3, PARAM_BROW_R_FORM:-0.3,
+    PARAM_MOUTH_FORM:0.3, PARAM_MOUTH_SIZE:0, PARAM_TERE:0.25,
+    PARAM_ARM_L:0, PARAM_ARM_R:0, PARAM_BODY_Y:0 },
+
+  // --- the cheerful persona's three. See PERSONA_MOODS in config.py.
+  // open and warm, looking right at you
+  happy: { PARAM_ANGLE_X:-3, PARAM_ANGLE_Z:4,
+    PARAM_EYE_BALL_X:0, PARAM_EYE_BALL_Y:0.1, PARAM_EYE_L_OPEN:1.0, PARAM_EYE_R_OPEN:1.0,
+    PARAM_BROW_L_Y:0.35, PARAM_BROW_R_Y:0.35, PARAM_BROW_L_FORM:0.5, PARAM_BROW_R_FORM:0.5,
+    PARAM_MOUTH_FORM:1.0, PARAM_MOUTH_SIZE:0.7, PARAM_TERE:0.35,
+    PARAM_ARM_L:0.3, PARAM_ARM_R:0.3, PARAM_BODY_Y:0.15 },
+  // full genki - the one place ZetaLoud and the eye sparkles both go to maximum
+  excited: { PARAM_ANGLE_X:-8, PARAM_ANGLE_Z:-6,
+    PARAM_EYE_BALL_X:0, PARAM_EYE_BALL_Y:0.3, PARAM_EYE_L_OPEN:1.45, PARAM_EYE_R_OPEN:1.45,
+    PARAM_EYE_BALL_KIRAKIRA:1, PARAM_BROW_L_Y:0.6, PARAM_BROW_R_Y:0.6,
+    PARAM_BROW_L_FORM:0.7, PARAM_BROW_R_FORM:0.7, PARAM_MOUTH_FORM:1.0, PARAM_MOUTH_SIZE:1.0,
+    PARAM_TERE:0.5, PARAM_ARM_L:1, PARAM_ARM_R:1, PARAM_BODY_Y:0.4, PARAM_BODY_Z:-6 },
+  // mock-sulking: cheeks up, brows down, looking away - not actual anger
+  pouty: { PARAM_ANGLE_X:9, PARAM_ANGLE_Z:-7,
+    PARAM_EYE_BALL_X:0.45, PARAM_EYE_BALL_Y:-0.25, PARAM_EYE_L_OPEN:0.65, PARAM_EYE_R_OPEN:0.65,
+    PARAM_BROW_L_Y:-0.45, PARAM_BROW_R_Y:-0.45, PARAM_BROW_L_ANGLE:-0.5, PARAM_BROW_R_ANGLE:-0.5,
+    PARAM_BROW_L_FORM:-0.3, PARAM_BROW_R_FORM:-0.3, PARAM_MOUTH_FORM:-0.8, PARAM_MOUTH_SIZE:-0.6,
+    PARAM_TERE:0.6, PARAM_ARM_L:-0.6, PARAM_ARM_R:-0.6, PARAM_BODY_Y:-0.15 },
+};
+
+let emoCur = { mouthForm: 0, eyeOpen: 1, brow: 0 };
+let emoTgt = EMOTIONS.pondering;
+let poseCur = {};        // eased current values for the full-pose mode
+let poseTgt = null;      // null = full-pose mode off
+let model = null;
+
+(async function init() {
+  try {
+    const stage = document.getElementById('stage');
+    const app = new PIXI.Application({ view: document.getElementById('live2d'),
+      resizeTo: stage, backgroundAlpha: 0, antialias: true });
+    model = await PIXI.live2d.Live2DModel.from(MODEL_URL);
+    app.stage.addChild(model);
+    model.anchor.set(0.5, 0.5);
+    const fit = () => {
+      const s = Math.min(app.renderer.width / model.internalModel.width,
+                         app.renderer.height / model.internalModel.height) * 0.92;
+      model.scale.set(s);
+      model.position.set(app.renderer.width / 2, app.renderer.height / 2);
+    };
+    fit();
+    window.addEventListener('resize', () => setTimeout(fit, 50));
+
+    // Face override runs AFTER the motion updates, exactly as in the real app - which is
+    // why motions can move the body while we keep control of the face.
+    model.internalModel.on('afterMotionUpdate', () => {
+      if (!document.getElementById('faceOverride').checked) return;
+      const cm = model.internalModel.coreModel;
+
+      // Full-pose mode wins when active - ease every parameter it names toward target.
+      if (poseTgt) {
+        for (const k in poseTgt) {
+          if (!(k in poseCur)) poseCur[k] = 0;
+          poseCur[k] += (poseTgt[k] - poseCur[k]) * 0.12;
+          try { cm.setParamFloat(k, poseCur[k]); } catch (e) {}
+        }
+        return;
+      }
+
+      emoCur.mouthForm += (emoTgt.mouthForm - emoCur.mouthForm) * 0.12;
+      emoCur.brow      += (emoTgt.brow      - emoCur.brow)      * 0.12;
+      emoCur.eyeOpen   += (emoTgt.eyeOpen   - emoCur.eyeOpen)   * 0.12;
+      try {
+        cm.setParamFloat('PARAM_MOUTH_FORM', emoCur.mouthForm);
+        cm.setParamFloat('PARAM_BROW_L_Y', emoCur.brow);
+        cm.setParamFloat('PARAM_BROW_R_Y', emoCur.brow);
+        if (Math.abs(emoCur.eyeOpen - 1.0) > 0.04) {
+          cm.setParamFloat('PARAM_EYE_L_OPEN', emoCur.eyeOpen);
+          cm.setParamFloat('PARAM_EYE_R_OPEN', emoCur.eyeOpen);
+        }
+      } catch (e) {}
+    });
+
+    buildUI();
+    status('model loaded · tap the canvas too, hit areas are live here');
+    log('model loaded ok');
+  } catch (e) {
+    status('FAILED: ' + e.message);
+    log('load failed: ' + e.message);
+  }
+})();
+
+function buildUI() {
+  // full poses
+  const poses = document.getElementById('poses');
+  Object.keys(POSE).forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'mood'; b.textContent = name;
+    b.onclick = () => {
+      poseTgt = POSE[name];
+      [...poses.children].forEach(c => c.classList.remove('on'));
+      [...document.getElementById('moods').children].forEach(c => c.classList.remove('on'));
+      b.classList.add('on');
+      log('POSE -> ' + name + '  (' + Object.keys(POSE[name]).length + ' params)');
+    };
+    poses.appendChild(b);
+  });
+  const off = document.createElement('button');
+  off.className = 'warn'; off.textContent = 'ปิดท่าเต็ม';
+  off.onclick = () => {
+    poseTgt = null; poseCur = {};
+    [...poses.children].forEach(c => c.classList.remove('on'));
+    log('full-pose mode off');
+  };
+  poses.appendChild(off);
+
+  // moods
+  const moods = document.getElementById('moods');
+  Object.keys(EMOTIONS).forEach(name => {
+    const b = document.createElement('button');
+    b.className = 'mood'; b.textContent = name;
+    b.onclick = () => {
+      poseTgt = null; poseCur = {};
+      emoTgt = EMOTIONS[name];
+      [...moods.children].forEach(c => c.classList.remove('on'));
+      [...document.getElementById('poses').children].forEach(c => c.classList.remove('on'));
+      b.classList.add('on');
+      log('face-only mood -> ' + name);
+    };
+    moods.appendChild(b);
+  });
+  moods.firstChild.classList.add('on');
+
+  // motions, read straight out of the model settings
+  const box = document.getElementById('motions');
+  const defs = (model.internalModel.settings || {}).motions || {};
+  const groups = Object.keys(defs);
+  if (!groups.length) { box.textContent = 'no motion groups found'; return; }
+  groups.forEach(g => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'width:100%;display:flex;gap:7px;flex-wrap:wrap;margin-bottom:3px';
+    const gb = document.createElement('button');
+    gb.className = 'grp'; gb.textContent = `${g} (${defs[g].length})`;
+    gb.onclick = () => play(g, undefined);
+    wrap.appendChild(gb);
+    defs[g].forEach((_, i) => {
+      const b = document.createElement('button');
+      b.textContent = '#' + i;
+      b.onclick = () => play(g, i);
+      wrap.appendChild(b);
+    });
+    box.appendChild(wrap);
+  });
+
+  // expressions
+  const ex = document.getElementById('expressions');
+  const exDefs = (model.internalModel.settings || {}).expressions || [];
+  if (!exDefs.length) { ex.textContent = 'no expressions found'; }
+  exDefs.forEach((e, i) => {
+    const b = document.createElement('button');
+    b.textContent = e.name || ('exp ' + i);
+    b.onclick = () => {
+      try { model.expression(e.name || i); log('expression -> ' + (e.name || i)); }
+      catch (err) { log('expression failed: ' + err.message); }
+    };
+    ex.appendChild(b);
+  });
+}
+
+function play(group, index) {
+  const t0 = performance.now();
+  try {
+    const r = model.motion(group, index);
+    const label = group + (index === undefined ? ' (random)' : ' #' + index);
+    Promise.resolve(r).then(ok => {
+      log(`motion ${label} → ${ok === false ? 'REJECTED (another motion has priority)' : 'started'}`);
+    }).catch(() => log('motion ' + label + ' failed'));
+    status('playing: ' + label);
+  } catch (e) {
+    log('motion error: ' + e.message);
+  }
+}
+
+document.getElementById('reset').onclick = () => {
+  emoTgt = { mouthForm: 0, eyeOpen: 1, brow: 0 };
+  log('face reset to neutral values');
+};
+document.getElementById('params').onclick = () => {
+  const cm = model.internalModel.coreModel;
+  let ids = null;
+  try { ids = cm._parameterIds || cm.getParamIds ? cm.getParamIds() : null; } catch (e) {}
+  if (!ids && cm._modelContext && cm._modelContext._paramIds) ids = cm._modelContext._paramIds;
+  console.log('Live2D parameters:', ids || cm);
+  log('printed to the browser console (F12 → Console)');
+};
+</script>
+</body>
+</html>

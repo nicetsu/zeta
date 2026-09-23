@@ -30,6 +30,11 @@ import urllib.request
 import modal
 
 APP_NAME = "zeta"
+
+# Measured over four cold starts on 2026-09-05. The ONE place this number lives: /api/sleep
+# and the lobby both report it, and both pages draw their elapsed bar against it. /api/sleep
+# used to hardcode 70, from before the warm-up work made cold starts longer.
+COLD_START_S = 89
 MODELS_DIR = "/models"          # Volume mount point
 CODE_DIR = "/app"               # our server.py / config.py / static/
 SBV2_DIR = "/sbv2"              # Style-Bert-VITS2 code
@@ -288,13 +293,13 @@ def _add_sleep(fastapi_app) -> None:
         also means it is not instant: with @modal.concurrent(max_inputs=10) the container
         lives until the last open request closes.
 
-        The next message pays a full cold start (~70 s) instead of landing warm.
+        The next message pays a full cold start (~COLD_START_S) instead of landing warm.
         """
         from modal.experimental import stop_fetching_inputs
 
         stop_fetching_inputs()
         print("[zeta] sleep requested - exiting once in-flight requests finish.")
-        return {"ok": True, "cold_start_s": 70}
+        return {"ok": True, "cold_start_s": COLD_START_S}
 
 
 # ---------------------------------------------------------------------------
@@ -348,8 +353,6 @@ def _add_auth(fastapi_app) -> None:
 # ---------------------------------------------------------------------------
 WEB_URL = "https://gun-89398--zeta-zeta-web.modal.run"
 
-# Measured over four cold starts on 2026-09-05; the page draws an elapsed bar against it.
-COLD_START_S = 89
 
 lobby_image = (
     modal.Image.debian_slim(python_version="3.11")

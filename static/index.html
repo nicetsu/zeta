@@ -36,7 +36,7 @@
   #footlinks { display: flex; gap: 20px; align-items: center; }
   #reset, #sleep { background: none; border: none; color: #b9a9d6; font-size: 13px;
     text-decoration: underline; cursor: pointer; padding: 0; }
-  #sleep[hidden] { display: none; }
+  #sleep[hidden], #reset[hidden], #gear[hidden] { display: none; }
   #mic:disabled { opacity: .45; cursor: default; box-shadow: none; }
   #mic.wake { background: #c08a46; box-shadow: 0 8px 30px rgba(192,138,70,.45); }
 
@@ -285,6 +285,27 @@ function setState(s) {
   if (sendBtn) sendBtn.textContent = (s === 'busy') ? '⏹' : '➤';   // send doubles as stop while busy
   applyMode();
   applyEnabled();
+  applyFooter();
+}
+
+// Set from /api/health: only the Modal deployment has anything to put to sleep.
+let cloud = false;
+/** While she is asleep or waking, every control that calls the API is hidden.
+ *
+ *  On a sleeping container ANY request is a cold start, so these used to cost ~89 s of A10
+ *  to do nothing useful: 😴 woke her just to put her back to sleep, ⚙️ hung for a minute and
+ *  a half, and "clear conversation" (pointless anyway - history dies with the container)
+ *  also reset the page to a greyed-out 🎤 with the ☀️ button gone, stranding the user until
+ *  a reload. The one control left is the wake button itself.
+ *
+ *  gear is looked up here rather than through its const, which is declared further down -
+ *  touching it from here before that line runs would throw and take the whole script out. */
+function isDormant() { return state === 'asleep' || state === 'waking'; }
+function applyFooter() {
+  const dormant = isDormant();
+  sleepBtn.hidden = !cloud || dormant;
+  resetBtn.hidden = dormant;
+  document.getElementById('gear').hidden = dormant;
 }
 // Asleep the mic IS the wake button, so it stays live; waking, nothing is tappable.
 function applyEnabled() {
@@ -300,9 +321,13 @@ let wakeTimer = null, wakeT0 = 0;
  *        'turn' - a turn went quiet, which is usually just the first-turn cost. Says
  *                 nothing about how long it will take until it has run past TURN_COLD_MS
  *                 and has therefore turned out to be a cold start after all. */
-function showWaking(kind) {
+function showWaking(kind, since) {
   if (wakeTimer) return;
-  wakeT0 = Date.now();
+  // Count from when the wait actually began, not from when this display appeared. The
+  // display only shows up once a wait is already slow (4 s into a turn, 3 s into a page
+  // load), so starting the clock here under-reported every wait by that much - and made
+  // the switch to the ~89 s bar land at 19 s instead of TURN_COLD_MS.
+  wakeT0 = since || Date.now();
   wakeEl.classList.add('show');
   const tick = () => {
     const ms = Date.now() - wakeT0;
@@ -472,7 +497,8 @@ function cancelTurn() { if (controller) { try { controller.abort(); } catch (e) 
 let slowTurnTimer = null;
 function armSlowTurn() {
   disarmSlowTurn();
-  slowTurnTimer = setTimeout(() => { slowTurnTimer = null; showWaking('turn'); }, TURN_WAKE_MS);
+  const sentAt = Date.now();
+  slowTurnTimer = setTimeout(() => { slowTurnTimer = null; showWaking('turn', sentAt); }, TURN_WAKE_MS);
 }
 function disarmSlowTurn() {
   if (slowTurnTimer) { clearTimeout(slowTurnTimer); slowTurnTimer = null; }
@@ -582,6 +608,7 @@ applyEnabled();
 sendBtn.addEventListener('click', () => { if (state === 'busy') cancelTurn(); else sendText(); });
 textInput.addEventListener('keydown', e => { if (e.key === 'Enter' && state !== 'busy') sendText(); });
 resetBtn.addEventListener('click', async () => {
+  if (isDormant()) return;          // hidden then anyway - see applyFooter()
   cancelTurn();
   await fetch('/api/reset', { method: 'POST' });
   logEl.innerHTML = ''; turnBubble = null; addBubble('conversation cleared', 'sys'); setStatus('ready');
@@ -600,6 +627,7 @@ function markSelected() {
   [...plist.children].forEach(c => c.classList.toggle('sel', c.dataset.text === ptext.value.trim()));
 }
 async function openSettings() {
+  if (isDormant()) return;
   try {
     const d = await (await fetch('/api/personas')).json();
     plist.innerHTML = '';
@@ -644,6 +672,7 @@ psave.addEventListener('click', async () => {
 // half the monthly bill. This ends the session when you say it ends; the cost is that the
 // next message pays a cold start instead of landing on a warm container.
 sleepBtn.addEventListener('click', async () => {
+  if (isDormant()) return;
   if (!confirm('Put Zeta to sleep now?\n\nThis stops the billing clock. Your next message will take about 90 seconds to wake her.')) return;
   cancelTurn();
   try {
@@ -685,7 +714,8 @@ async function healthOnce(ms) {
 /** Poll health until the container answers, showing the progress display once it is
  *  clearly not instant. A per-attempt timeout is treated as still waking, not an error. */
 async function waitForHealth(showAfterMs) {
-  const slow = setTimeout(() => showWaking('cold'), showAfterMs);
+  const askedAt = Date.now();
+  const slow = setTimeout(() => showWaking('cold', askedAt), showAfterMs);
   const deadline = Date.now() + 300000;
   try {
     while (Date.now() < deadline) {
@@ -698,7 +728,8 @@ async function waitForHealth(showAfterMs) {
 }
 
 function reportHealth(h, verbose) {
-  sleepBtn.hidden = !h.cloud;
+  cloud = !!h.cloud;
+  applyFooter();
   let bad = false;
   if (!h.ollama) { addBubble('\u26A0\uFE0F the brain is not answering \u2014 replies will fail', 'sys'); bad = true; }
   else if (!h.llm_warm) { addBubble('\u26A0\uFE0F the model did not preload \u2014 the first reply may be slow', 'sys'); bad = true; }

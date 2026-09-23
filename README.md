@@ -22,7 +22,7 @@ cookie does not carry over). The lobby's "open the chat →" does that handoff f
 Rotate the token with `modal secret create zeta-auth ZETA_TOKEN=… --force`, then see trap 9.
 
 > The URL is public and the voice is a real VTuber's. Keep the link private; don't publish
-> recordings.
+> recordings. **The token protects the conversation, not the bill** — see trap 11.
 
 ---
 
@@ -56,6 +56,7 @@ anything**, so it can show state first and let you choose.
 | first turn, to first audio | ~8.7 s |
 | every turn after | 1–2.7 s |
 | local mode, per turn | ~26 s (SBV2 on CPU) |
+| 😴 → container gone | 12.6 s (it finishes in-flight requests first) |
 
 **Two estimates, never merged.** A cold start is ~89 s; the first turn after one is ~8.7 s.
 The page shows a bar against 89 s only where that is honest — a stalled turn gets a bare
@@ -78,7 +79,8 @@ Half the bill is idle time, which is what 😴 is for. Tap it when you are *done
 are thinking — the next message pays a cold start.
 
 - [ ] **Set a workspace budget cap** at <https://modal.com/settings/usage>. A card is
-      attached, so the $30/month free credit is no longer a ceiling.
+      attached, so the $30/month free credit is no longer a ceiling — and the cap is the
+      only thing standing between a leaked chat URL and the A10 (trap 11).
 
 Cost levers, all measured: removing `cpu=8.0`/`memory=16384` cost **1.3%** of speed and saved
 31% of the bill (llama.cpp peaked at 0.56 of 17 cores). Lowering `scaledown_window` —
@@ -164,6 +166,19 @@ token stays in the secret.
 10. **`max_containers=1` is deliberate, and so is the forgetting.** `history` and
     `active_persona` live in module globals, so two containers would be two conversations.
     She starts every session fresh; persisting history is explicitly **not** planned.
+11. **Anyone with the chat URL can wake the A10 — no token needed.** The `?k=` gate is
+    middleware *inside* the GPU container, so Modal has to cold-start it before it can
+    answer 401. Confirmed 2026-09-23: one anonymous request woke her. **Accepted on purpose**
+    for a single-user app with an unpublished URL; the defence is keeping the URL private
+    plus the budget cap. The real fix — checking the token before any container starts —
+    means Modal proxy auth, which a plain browser link cannot send, so the lobby would have
+    to proxy every request including the audio stream. Not worth it unless the URL leaks.
+    The lobby does not have this problem: it has no GPU, so waking it costs almost nothing.
+12. **While she is asleep, only ☀️ may touch the API.** On a sleeping container any request
+    is a cold start, so 😴, ⚙️ and *clear conversation* are hidden while `asleep` or
+    `waking` (`applyFooter()` in `index.html`). Before that, each silently cost ~89 s of
+    A10 — and *clear* also left a greyed-out 🎤 with no ☀️, stranding you until a reload.
+    Any new button that calls the API must be hidden there too.
 
 ---
 

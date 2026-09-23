@@ -266,6 +266,7 @@ The three tuning tools need **only** SBV2 on :5000, so you can leave Ollama shut
 | Face | Live2D (Shizuku) in `static/index.html` | browser | browser |
 | Web | FastAPI `server.py` + `static/index.html` | Modal HTTPS | HTTPS :8443 |
 | Lobby | `lobby()` in `modal_app.py` + `static/lobby.html` | no GPU | — |
+| Logo | `static/favicon.svg` — inlined into both pages as data URIs, with a 32 px PNG and a 180 px home-screen PNG rendered from it | — | — |
 
 The 6 GB card here cannot hold anything past an 8B, which is the whole reason the cloud
 exists. Everything else is the same code.

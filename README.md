@@ -234,7 +234,7 @@ physics. `PARAM_MOUTH_SIZE`, not `PARAM_MOUTH_FORM`, is what makes her smile.
 
 | What | Where |
 |---|---|
-| Personality presets | `PERSONAS` (also editable live in ⚙️) |
+| Personality presets | `PERSONAS` — ⚙️ only offers them by `label` (Introvert / Extrovert); the text itself is edited here, not in the app |
 | Mood tag instructions | `rules_for()` — keep it mechanical and persona-agnostic |
 | Voice per mood | `EMOTION_VOICE` — style, weight, length, `sdp_ratio`, `noisew` |
 | Reply length | the LENGTH section of `rules_for()`; `num_predict` is only a backstop |

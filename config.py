@@ -288,7 +288,7 @@ PERSONAS = [
     # rate from 55.9% to 36.0% on Lumimaid-8B - a long persona sits in front of RULES in the
     # system prompt and drowns out the format instructions. Measure with check_moods.py
     # before growing this.
-    {"id": "intp", "label": "Introverted INTP", "text": (
+    {"id": "intp", "label": "Introvert", "text": (
         "a quiet, introverted INTP woman. She thinks out loud, qualifies what she is unsure "
         "of, corrects herself mid-sentence, and says \"I don't know\" easily. She skips small "
         "talk - given a shallow question she finds the interesting thing underneath it and "
@@ -304,7 +304,7 @@ PERSONAS = [
     # rules in rules_for() are identical for both personas and tightening those would cut
     # the INTP's long answers too. num_predict is only a backstop: models write to whatever
     # cap they are given.
-    {"id": "cheerful", "label": "Cheerful & Teasing", "text": (
+    {"id": "cheerful", "label": "Extrovert", "text": (
         "a cheerful, energetic, slightly mischievous girl who is playful and warm and "
         "loves teasing with dry, witty humor. She talks in short bursts and throws the "
         "conversation straight back to him - her energy is in how she says things, not "

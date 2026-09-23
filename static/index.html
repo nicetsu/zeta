@@ -82,15 +82,12 @@
     background: #2a2140; color: #f3eefb; cursor: pointer; }
   .persona:hover { border-color: #ffffff44; }
   .persona.sel { border-color: #b06cff; background: #3a2a5c; }
-  .persona b { display: block; font-size: 14px; margin-bottom: 3px; }
-  .persona span { opacity: .55; font-size: 11.5px; line-height: 1.3; display: block; }
-  #ptext { width: 100%; min-height: 88px; border-radius: 10px; border: 1px solid #ffffff1f;
-    background: #120e1f; color: #f3eefb; padding: 11px; font-size: 14px; resize: vertical; font-family: inherit; }
+  .persona b { display: block; font-size: 15px; text-align: center; padding: 6px 0; }
   .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
   .btn { padding: 9px 18px; border-radius: 10px; border: none; cursor: pointer; font-size: 14px; }
   .btn.primary { background: #8b46c0; color: #fff; }
   .btn.ghost { background: #2a2140; color: #cdbbe6; }
-  @media (max-width: 520px) { .persona-list { grid-template-columns: 1fr; } }
+  /* Two short labels fit side by side even on a phone - no single-column fallback needed. */
 
   #textbar { display: none; width: 100%; gap: 8px; align-items: center; }
   #textinput { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 22px; border: 1px solid #ffffff24;
@@ -134,10 +131,8 @@
     <div id="panel">
       <label class="toggle"><input type="checkbox" id="textmode"> Text mode — type instead of talk</label>
       <h3>Personality</h3>
-      <div class="hint">Pick a preset (tap to load it), tweak it, or write your own — then Save.</div>
+      <div class="hint">Pick how she talks, then Save.</div>
       <div class="persona-list" id="plist"></div>
-      <label class="hint" for="ptext">Active personality:</label>
-      <textarea id="ptext" placeholder="Describe her personality, e.g. a cheerful anime girl who loves teasing..."></textarea>
       <div class="row">
         <button class="btn ghost" id="pcancel">Cancel</button>
         <button class="btn primary" id="psave">Save &amp; Apply</button>
@@ -626,13 +621,15 @@ resetBtn.addEventListener('click', async () => {
 const gear = document.getElementById('gear');
 const overlay = document.getElementById('overlay');
 const plist = document.getElementById('plist');
-const ptext = document.getElementById('ptext');
 const psave = document.getElementById('psave');
 const pcancel = document.getElementById('pcancel');
+// The panel offers the presets by name only - no prompt text, no editor. The text still
+// comes from /api/personas and is sent back on save, so the server side is unchanged.
 let pickedId = null;   // preset id chosen in this panel session, sent with the save
+let presetText = {};   // id -> persona text, as served
 
 function markSelected() {
-  [...plist.children].forEach(c => c.classList.toggle('sel', c.dataset.text === ptext.value.trim()));
+  [...plist.children].forEach(c => c.classList.toggle('sel', c.dataset.id === pickedId));
 }
 async function openSettings() {
   if (isDormant()) return;
@@ -641,14 +638,14 @@ async function openSettings() {
     plist.innerHTML = '';
     (d.presets || []).forEach(p => {
       const b = document.createElement('button');
-      b.className = 'persona'; b.dataset.text = p.text; b.dataset.id = p.id;
+      b.className = 'persona'; b.dataset.id = p.id;
       const bold = document.createElement('b'); bold.textContent = p.label;
-      const span = document.createElement('span'); span.textContent = p.text;
-      b.appendChild(bold); b.appendChild(span);
-      b.onclick = () => { ptext.value = p.text; pickedId = p.id; markSelected(); };
+      b.appendChild(bold);
+      presetText[p.id] = p.text;
+      b.onclick = () => { pickedId = p.id; markSelected(); };
       plist.appendChild(b);
     });
-    ptext.value = d.current || ''; pickedId = d.current_id || null;
+    pickedId = d.current_id || null;
     markSelected();
     document.getElementById('textmode').checked = textMode;
     overlay.classList.add('show');
@@ -662,14 +659,12 @@ document.getElementById('textmode').addEventListener('change', e => {
 });
 pcancel.addEventListener('click', () => overlay.classList.remove('show'));
 overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('show'); });
-ptext.addEventListener('input', markSelected);
 psave.addEventListener('click', async () => {
-  const text = ptext.value.trim();
+  if (!pickedId || !presetText[pickedId]) { overlay.classList.remove('show'); return; }
   try {
-    // pickedId tells the server which mood set to use. Hand-edited text sends no id and
-    // the server keeps whichever preset was selected last.
+    // The id tells the server which mood set to use; the text is the preset's own.
     await fetch('/api/persona', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pickedId ? { text, id: pickedId } : { text }) });
+      body: JSON.stringify({ text: presetText[pickedId], id: pickedId }) });
     overlay.classList.remove('show');
     addBubble('personality updated ✨', 'sys');
   } catch (e) { addBubble('Save failed: ' + e.message, 'sys'); }

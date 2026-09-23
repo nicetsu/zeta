@@ -1,6 +1,7 @@
 # Setting Zeta up from scratch
 
-Only needed once. Day-to-day use, costs and troubleshooting are in [README.md](README.md).
+Only needed once. How to use it is in [README.md](README.md); costs, troubleshooting and the
+known traps are in [MAINTENANCE.md](MAINTENANCE.md).
 
 **Do this first on a Thai Windows console:** `setx PYTHONUTF8 1`. The `modal` CLI prints `✓`,
 which cp874 cannot encode, and the command dies before doing any work.
@@ -33,14 +34,14 @@ python -m modal run modal_app.py::warm
 ```
 
 **4. Try it on a temporary URL.** Watch this terminal — the first container start pulls the
-image and loads both models, so give it a few minutes. Note trap 2 in README: no live reload
+image and loads both models, so give it a few minutes. Note trap 2 in MAINTENANCE.md: no live reload
 on Windows, so Ctrl-C and restart after every edit.
 
 ```bash
 python -m modal serve modal_app.py
 ```
 
-**5. Deploy.** Gives the two permanent URLs listed in README:
+**5. Deploy.** Gives the two permanent URLs listed in MAINTENANCE.md:
 
 ```bash
 python -m modal deploy modal_app.py
@@ -58,7 +59,7 @@ Then set a budget cap at <https://modal.com/settings/usage>.
   the working PC venv has — in particular `transformers==4.57.6`, because newer releases need
   torch≥2.5 while SBV2 pins torch<2.4.
 - `zstd` is an apt dependency: the Ollama installer needs it to unpack its release archive.
-- **No `OLLAMA_KV_CACHE_TYPE` in the cloud** — see trap 7 in README.
+- **No `OLLAMA_KV_CACHE_TYPE` in the cloud** — see trap 7 in MAINTENANCE.md.
 
 ---
 
@@ -66,7 +67,7 @@ Then set a budget cap at <https://modal.com/settings/usage>.
 
 - Models and caches live on **D:** (C: was nearly full): `OLLAMA_MODELS`, `HF_HOME`,
   `NLTK_DATA`. `start.ps1` derives all of them from `$PSScriptRoot`, so moving the project
-  folder keeps working — but see trap 1 in README for the two things that don't.
+  folder keeps working — but see trap 1 in MAINTENANCE.md for the two things that don't.
 - SBV2 runs in its **own Python 3.11 venv** (`Style-Bert-VITS2\venv`), torch `2.3.1+cu121`,
   CUDA available. It still runs on CPU locally because `config.yml` says `device: cpu` — and
   that is deliberate: the 6 GB card cannot hold Lumimaid and SBV2 at the same time.

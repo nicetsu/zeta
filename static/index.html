@@ -165,7 +165,7 @@ let stream = null, recorder = null, chunks = [];
 // container was still starting, so you could talk into a page that had nobody listening.
 let ready = false;
 
-// Measured over four cold starts on 2026-09-05 (see README.md). Only used to draw an
+// Measured over four cold starts on 2026-09-05 (see MAINTENANCE.md). Only used to draw an
 // honest elapsed-vs-expected bar; past it the bar stops and says so rather than animating
 // a lie, because the container cannot report its own progress.
 const WAKE_ESTIMATE_S = 89;
@@ -477,7 +477,7 @@ const MODEL_URL = "https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@maste
 async function ensureMic() {
   if (stream) return true;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    addBubble('Microphone needs HTTPS. Open this page over https:// (see README).', 'sys'); return false;
+    addBubble('Microphone needs HTTPS. Open this page over https:// (see MAINTENANCE.md, Local mode).', 'sys'); return false;
   }
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); return true; }
   catch (e) { addBubble('Mic permission denied: ' + e.message, 'sys'); return false; }

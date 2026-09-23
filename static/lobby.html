@@ -74,6 +74,13 @@ const POLL_ASLEEP_MS = 15000;   // free: at runners 0 /api/state returns early a
                                 // touches the GPU container at all
 // 'ready' and 'error' do not poll at all - see schedule().
 
+// Right after ☀️, runners is still 0 - Modal has not scheduled the container yet (measured
+// up to 7 s). Reading that as "asleep" flipped the page back to 💤 half a second after the
+// tap, while the wake was in fact going perfectly well. So for this long after WE asked,
+// runners 0 means "not started yet"; only past it does it mean the start genuinely failed.
+const WAKE_GRACE_MS = 60000;
+let wakeAskedAt = 0;
+
 let mode = 'checking';      // 'checking' | 'asleep' | 'waking' | 'ready' | 'error'
 let t0 = 0, ticker = null;
 
@@ -148,9 +155,13 @@ async function poll() {
     const s = await getState();
     if (!s) { setMode('error', 'could not read her state'); showFlags(null); return; }
     if (!s.awake) {
-      // A container that goes away mid-wake (a failed start) lands here; offering the
-      // button again is the honest response.
-      setMode('asleep', mode === 'waking' ? 'she went back to sleep' : 'she is asleep');
+      // We asked for a wake moments ago and Modal simply has not started her yet - stay in
+      // 'waking' and keep the clock running, rather than reporting a sleep that isn't one.
+      if (wakeAskedAt && Date.now() - wakeAskedAt < WAKE_GRACE_MS) return;
+      // Past the grace period with still no container, the start really did fail; offering
+      // the button again is the honest response.
+      setMode('asleep', wakeAskedAt ? 'she did not start — try again' : 'she is asleep');
+      wakeAskedAt = 0;
       showFlags(null);
       return;
     }
@@ -179,6 +190,7 @@ async function tick() { await poll(); schedule(); }
 
 actionEl.addEventListener('click', async () => {
   if (mode === 'ready' || mode === 'error') { location.href = '/go'; return; }
+  wakeAskedAt = Date.now();
   setMode('waking', 'she is starting up');
   // Fire-and-forget on the server side: the lobby pokes the GPU app so the browser is not
   // the thing holding a ~89 s request open with nothing on screen.

@@ -183,6 +183,11 @@ leaving the tab open kept her awake forever, at A10 prices.
 Built as a self-scheduling `setTimeout` rather than `setInterval` for exactly this reason.
 If you ever add a state, decide its interval deliberately.
 
+**Right after ☀️, `runners: 0` does not mean asleep.** Modal takes up to ~7 s to schedule the
+container, and the first poll lands at ~0.5 s. Reading that 0 as *asleep* bounced the page back
+to 💤 while the wake was going fine. For `WAKE_GRACE_MS` (60 s) after the page itself asked,
+0 means *not started yet*; only past that does it report *she did not start — try again*.
+
 ---
 
 ## The character
